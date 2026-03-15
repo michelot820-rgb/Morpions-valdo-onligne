@@ -9,7 +9,7 @@
 body{
 font-family:Arial;
 text-align:center;
-background:linear-gradient(135deg,#141e30,#243b55);
+background:#1e272e;
 color:white;
 }
 
@@ -24,79 +24,54 @@ margin-top:20px;
 .cell{
 width:40px;
 height:40px;
-background:#eee;
+background:white;
 display:flex;
 align-items:center;
 justify-content:center;
 font-size:22px;
 font-weight:bold;
 cursor:pointer;
-border-radius:5px;
 }
 
-.cell:hover{
-background:#ddd;
-}
-
-.x{color:#e74c3c;}
-.o{color:#3498db;}
-
-button,input{
-padding:8px;
-margin:5px;
-font-size:16px;
-}
+.x{color:red;}
+.o{color:blue;}
 
 </style>
-
 </head>
 
 <body>
 
-<h2>Morpion Online 15x15</h2>
+<h2>Morpion Online</h2>
 
-<div>
-<input id="roomInput" placeholder="Room code">
-<button onclick="createRoom()">Create Room</button>
-<button onclick="joinRoom()">Join Room</button>
-</div>
+<input id="room" placeholder="Room code">
+<button onclick="createRoom()">Create</button>
+<button onclick="joinRoom()">Join</button>
 
-<h3 id="status">Ap tann jwè...</h3>
+<h3 id="status">Ap tann...</h3>
 
 <div id="board"></div>
-
-<audio id="winSound">
-<source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg">
-</audio>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCKF5yc2D36GVGvFB5BTvHXhb7A_srdxTo",
-  authDomain: "morpions-6d8cd.firebaseapp.com",
-  projectId: "morpions-6d8cd",
-  storageBucket: "morpions-6d8cd.firebasestorage.app",
-  messagingSenderId: "359058268143",
-  appId: "1:359058268143:web:81f498df649a2ff734601a",
-  measurementId: "G-B5K7TWXV2N"
-};
+const firebaseConfig={
+apiKey:"AIzaSyCKF5yc2D36GVGvFB5BTvHXhb7A_srdxTo",
+authDomain:"morpions-6d8cd.firebaseapp.com",
+projectId:"morpions-6d8cd"
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const app=initializeApp(firebaseConfig)
+const db=getFirestore(app)
 
-const size = 15
-
+let size=15
 let board=[]
-let currentPlayer="X"
-let gameOver=false
 let roomId=null
+let current="X"
 
 const boardDiv=document.getElementById("board")
 const status=document.getElementById("status")
-const winSound=document.getElementById("winSound")
 
 function createBoard(){
 
@@ -110,12 +85,10 @@ for(let c=0;c<size;c++){
 
 board[r][c]=""
 
-const cell=document.createElement("div")
+let cell=document.createElement("div")
 cell.className="cell"
-cell.dataset.row=r
-cell.dataset.col=c
 
-cell.addEventListener("click",playMove)
+cell.onclick=()=>move(r,c)
 
 boardDiv.appendChild(cell)
 
@@ -125,81 +98,49 @@ boardDiv.appendChild(cell)
 
 }
 
-function drawBoard(){
+function draw(){
 
-const cells=document.querySelectorAll(".cell")
+let cells=document.querySelectorAll(".cell")
 
-cells.forEach(cell=>{
+let i=0
 
-let r=cell.dataset.row
-let c=cell.dataset.col
+for(let r=0;r<size;r++){
+for(let c=0;c<size;c++){
 
-cell.textContent=board[r][c]
+cells[i].textContent=board[r][c]
+cells[i].classList.remove("x","o")
 
-cell.classList.remove("x","o")
+if(board[r][c]=="X") cells[i].classList.add("x")
+if(board[r][c]=="O") cells[i].classList.add("o")
 
-if(board[r][c]=="X") cell.classList.add("x")
-if(board[r][c]=="O") cell.classList.add("o")
+i++
 
-})
+}
+}
 
 }
 
-async function playMove(){
+async function move(r,c){
 
-if(gameOver || !roomId) return
-
-let r=this.dataset.row
-let c=this.dataset.col
-
+if(!roomId) return
 if(board[r][c]!="") return
 
-board[r][c]=currentPlayer
+board[r][c]=current
+
+current=current=="X"?"O":"X"
 
 await updateDoc(doc(db,"games",roomId),{
 board:board,
-player: currentPlayer==="X"?"O":"X"
+player:current
 })
 
 }
 
-function checkDirection(r,c,dr,dc){
-
-let count=1
-let i=1
-
-while(board[r*1+dr*i] && board[r*1+dr*i][c*1+dc*i]===currentPlayer){
-count++
-i++
-}
-
-i=1
-
-while(board[r*1-dr*i] && board[r*1-dr*i][c*1-dc*i]===currentPlayer){
-count++
-i++
-}
-
-return count>=5
-
-}
-
-function checkWin(r,c){
-
-return(
-checkDirection(r,c,1,0)||
-checkDirection(r,c,0,1)||
-checkDirection(r,c,1,1)||
-checkDirection(r,c,1,-1)
-)
-
-}
-
-window.createRoom = async function(){
+window.createRoom=async function(){
 
 roomId=Math.random().toString(36).substring(2,7)
 
-document.getElementById("roomInput").value=roomId
+document.getElementById("room").value=roomId
 
 createBoard()
 
@@ -208,36 +149,32 @@ board:board,
 player:"X"
 })
 
-listenGame()
-
-status.textContent="Room: "+roomId
+listen()
 
 }
 
-window.joinRoom = function(){
+window.joinRoom=function(){
 
-roomId=document.getElementById("roomInput").value
+roomId=document.getElementById("room").value
 
 createBoard()
 
-listenGame()
-
-status.textContent="Room: "+roomId
+listen()
 
 }
 
-function listenGame(){
+function listen(){
 
-onSnapshot(doc(db,"games",roomId),(snapshot)=>{
+onSnapshot(doc(db,"games",roomId),(snap)=>{
 
-let data=snapshot.data()
+let data=snap.data()
 
 board=data.board
-currentPlayer=data.player
+current=data.player
 
-drawBoard()
+draw()
 
-status.textContent="Tou jwè "+currentPlayer
+status.textContent="Tou: "+current
 
 })
 
