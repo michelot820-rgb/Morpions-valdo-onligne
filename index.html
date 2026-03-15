@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ht">
+<head>
+<meta charset="UTF-8">
+<title>Morpion Online</title>
+
+<style>
+
+body{
+font-family:Arial;
+text-align:center;
+background:linear-gradient(135deg,#141e30,#243b55);
+color:white;
+}
+
+#board{
+display:grid;
+grid-template-columns:repeat(15,40px);
+gap:3px;
+justify-content:center;
+margin-top:20px;
+}
+
+.cell{
+width:40px;
+height:40px;
+background:#eee;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:22px;
+font-weight:bold;
+cursor:pointer;
+border-radius:5px;
+}
+
+.cell:hover{
+background:#ddd;
+}
+
+.x{color:#e74c3c;}
+.o{color:#3498db;}
+
+button,input{
+padding:8px;
+margin:5px;
+font-size:16px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>Morpion Online 15x15</h2>
+
+<div>
+<input id="roomInput" placeholder="Room code">
+<button onclick="createRoom()">Create Room</button>
+<button onclick="joinRoom()">Join Room</button>
+</div>
+
+<h3 id="status">Ap tann jwè...</h3>
+
+<div id="board"></div>
+
+<audio id="winSound">
+<source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg">
+</audio>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCKF5yc2D36GVGvFB5BTvHXhb7A_srdxTo",
+  authDomain: "morpions-6d8cd.firebaseapp.com",
+  projectId: "morpions-6d8cd",
+  storageBucket: "morpions-6d8cd.firebasestorage.app",
+  messagingSenderId: "359058268143",
+  appId: "1:359058268143:web:81f498df649a2ff734601a",
+  measurementId: "G-B5K7TWXV2N"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const size = 15
+
+let board=[]
+let currentPlayer="X"
+let gameOver=false
+let roomId=null
+
+const boardDiv=document.getElementById("board")
+const status=document.getElementById("status")
+const winSound=document.getElementById("winSound")
+
+function createBoard(){
+
+boardDiv.innerHTML=""
+
+for(let r=0;r<size;r++){
+
+board[r]=[]
+
+for(let c=0;c<size;c++){
+
+board[r][c]=""
+
+const cell=document.createElement("div")
+cell.className="cell"
+cell.dataset.row=r
+cell.dataset.col=c
+
+cell.addEventListener("click",playMove)
+
+boardDiv.appendChild(cell)
+
+}
+
+}
+
+}
+
+function drawBoard(){
+
+const cells=document.querySelectorAll(".cell")
+
+cells.forEach(cell=>{
+
+let r=cell.dataset.row
+let c=cell.dataset.col
+
+cell.textContent=board[r][c]
+
+cell.classList.remove("x","o")
+
+if(board[r][c]=="X") cell.classList.add("x")
+if(board[r][c]=="O") cell.classList.add("o")
+
+})
+
+}
+
+async function playMove(){
+
+if(gameOver || !roomId) return
+
+let r=this.dataset.row
+let c=this.dataset.col
+
+if(board[r][c]!="") return
+
+board[r][c]=currentPlayer
+
+await updateDoc(doc(db,"games",roomId),{
+board:board,
+player: currentPlayer==="X"?"O":"X"
+})
+
+}
+
+function checkDirection(r,c,dr,dc){
+
+let count=1
+let i=1
+
+while(board[r*1+dr*i] && board[r*1+dr*i][c*1+dc*i]===currentPlayer){
+count++
+i++
+}
+
+i=1
+
+while(board[r*1-dr*i] && board[r*1-dr*i][c*1-dc*i]===currentPlayer){
+count++
+i++
+}
+
+return count>=5
+
+}
+
+function checkWin(r,c){
+
+return(
+checkDirection(r,c,1,0)||
+checkDirection(r,c,0,1)||
+checkDirection(r,c,1,1)||
+checkDirection(r,c,1,-1)
+)
+
+}
+
+window.createRoom = async function(){
+
+roomId=Math.random().toString(36).substring(2,7)
+
+document.getElementById("roomInput").value=roomId
+
+createBoard()
+
+await setDoc(doc(db,"games",roomId),{
+board:board,
+player:"X"
+})
+
+listenGame()
+
+status.textContent="Room: "+roomId
+
+}
+
+window.joinRoom = function(){
+
+roomId=document.getElementById("roomInput").value
+
+createBoard()
+
+listenGame()
+
+status.textContent="Room: "+roomId
+
+}
+
+function listenGame(){
+
+onSnapshot(doc(db,"games",roomId),(snapshot)=>{
+
+let data=snapshot.data()
+
+board=data.board
+currentPlayer=data.player
+
+drawBoard()
+
+status.textContent="Tou jwè "+currentPlayer
+
+})
+
+}
+
+createBoard()
+
+</script>
+
+</body>
+</html>
