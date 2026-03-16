@@ -9,7 +9,7 @@
 body{
 font-family:Arial;
 text-align:center;
-background:#1e272e;
+background:linear-gradient(135deg,#141e30,#243b55);
 color:white;
 }
 
@@ -24,37 +24,47 @@ margin-top:20px;
 .cell{
 width:40px;
 height:40px;
-background:white;
+background:#fff;
 display:flex;
 align-items:center;
 justify-content:center;
 font-size:22px;
 font-weight:bold;
 cursor:pointer;
+border-radius:4px;
 }
 
-.x{color:red;}
-.o{color:blue;}
+.cell:hover{background:#eee}
+
+.x{color:#e74c3c}
+.o{color:#3498db}
+
+button,input{
+padding:8px;
+margin:5px;
+font-size:16px;
+}
 
 </style>
 </head>
 
 <body>
 
-<h2>Morpion Online</h2>
+<h2>Morpion Online 15x15</h2>
 
-<input id="room" placeholder="Room code">
+<input id="roomInput" placeholder="Room code">
 <button onclick="createRoom()">Create</button>
 <button onclick="joinRoom()">Join</button>
+<button onclick="restartGame()">Restart</button>
 
-<h3 id="status">Ap tann...</h3>
+<h3 id="status">Ap tann jwè...</h3>
 
 <div id="board"></div>
 
 <script type="module">
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
 
 const firebaseConfig={
 apiKey:"AIzaSyCKF5yc2D36GVGvFB5BTvHXhb7A_srdxTo",
@@ -65,10 +75,11 @@ projectId:"morpions-6d8cd"
 const app=initializeApp(firebaseConfig)
 const db=getFirestore(app)
 
-let size=15
+const size=15
 let board=[]
 let roomId=null
-let current="X"
+let currentPlayer="X"
+let gameOver=false
 
 const boardDiv=document.getElementById("board")
 const status=document.getElementById("status")
@@ -85,10 +96,9 @@ for(let c=0;c<size;c++){
 
 board[r][c]=""
 
-let cell=document.createElement("div")
+const cell=document.createElement("div")
 cell.className="cell"
-
-cell.onclick=()=>move(r,c)
+cell.onclick=()=>playMove(r,c)
 
 boardDiv.appendChild(cell)
 
@@ -98,9 +108,9 @@ boardDiv.appendChild(cell)
 
 }
 
-function draw(){
+function drawBoard(){
 
-let cells=document.querySelectorAll(".cell")
+const cells=document.querySelectorAll(".cell")
 
 let i=0
 
@@ -108,6 +118,7 @@ for(let r=0;r<size;r++){
 for(let c=0;c<size;c++){
 
 cells[i].textContent=board[r][c]
+
 cells[i].classList.remove("x","o")
 
 if(board[r][c]=="X") cells[i].classList.add("x")
@@ -120,19 +131,59 @@ i++
 
 }
 
-async function move(r,c){
+async function playMove(r,c){
 
-if(!roomId) return
+if(gameOver||!roomId) return
 if(board[r][c]!="") return
 
-board[r][c]=current
+board[r][c]=currentPlayer
 
-current=current=="X"?"O":"X"
+if(checkWin(r,c)){
+gameOver=true
+status.textContent="Jwè "+currentPlayer+" genyen!"
+}
+
+currentPlayer=currentPlayer=="X"?"O":"X"
+
+drawBoard()
 
 await updateDoc(doc(db,"games",roomId),{
 board:board,
-player:current
+player:currentPlayer
 })
+
+}
+
+function checkDirection(r,c,dr,dc){
+
+let player=board[r][c]
+let count=1
+let i=1
+
+while(board[r+dr*i] && board[r+dr*i][c+dc*i]==player){
+count++
+i++
+}
+
+i=1
+
+while(board[r-dr*i] && board[r-dr*i][c-dc*i]==player){
+count++
+i++
+}
+
+return count>=5
+
+}
+
+function checkWin(r,c){
+
+return(
+checkDirection(r,c,1,0)||
+checkDirection(r,c,0,1)||
+checkDirection(r,c,1,1)||
+checkDirection(r,c,1,-1)
+)
 
 }
 
@@ -140,7 +191,7 @@ window.createRoom=async function(){
 
 roomId=Math.random().toString(36).substring(2,7)
 
-document.getElementById("room").value=roomId
+document.getElementById("roomInput").value=roomId
 
 createBoard()
 
@@ -149,38 +200,94 @@ board:board,
 player:"X"
 })
 
-listen()
+listenGame()
+
+status.textContent="Room: "+roomId
+
+updateURL()
 
 }
 
 window.joinRoom=function(){
 
-roomId=document.getElementById("room").value
+roomId=document.getElementById("roomInput").value
 
 createBoard()
 
-listen()
+listenGame()
+
+status.textContent="Room: "+roomId
+
+updateURL()
 
 }
 
-function listen(){
+function listenGame(){
 
-onSnapshot(doc(db,"games",roomId),(snap)=>{
+onSnapshot(doc(db,"games",roomId),(snapshot)=>{
 
-let data=snap.data()
+let data=snapshot.data()
+
+if(!data) return
 
 board=data.board
-current=data.player
+currentPlayer=data.player
 
-draw()
+drawBoard()
 
-status.textContent="Tou: "+current
+if(!gameOver)
+status.textContent="Tou jwè "+currentPlayer
 
 })
 
 }
 
+window.restartGame=async function(){
+
+if(!roomId) return
+
+for(let r=0;r<size;r++){
+for(let c=0;c<size;c++){
+board[r][c]=""
+}
+}
+
+gameOver=false
+
+await updateDoc(doc(db,"games",roomId),{
+board:board,
+player:"X"
+})
+
+}
+
+function updateURL(){
+
+const url=new URL(window.location)
+
+url.searchParams.set("room",roomId)
+
+history.replaceState(null,"",url)
+
+}
+
+function autoJoin(){
+
+const params=new URLSearchParams(window.location.search)
+
+const room=params.get("room")
+
+if(room){
+roomId=room
+document.getElementById("roomInput").value=room
 createBoard()
+listenGame()
+}
+
+}
+
+createBoard()
+autoJoin()
 
 </script>
 
